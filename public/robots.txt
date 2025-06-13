@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://toolzilla.com/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
+
+# Disallow admin or private areas (if any)
+# Disallow: /admin/
+# Disallow: /private/
+
+# Allow all tools and pages
+Allow: /image-compressor
+Allow: /image-resizer
+Allow: /finance-calculators
+Allow: /pdf-to-text
+Allow: /text-to-pdf
+Allow: /blog
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
