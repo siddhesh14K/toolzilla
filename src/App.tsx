@@ -9,16 +9,31 @@ import {
   X, 
   Moon, 
   Sun,
-  Zap
+  Zap,
+  Video,
+  Search,
+  Filter
 } from 'lucide-react';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import HomePage from './components/HomePage';
+import ToolsPage from './components/ToolsPage';
+import SearchPage from './components/SearchPage';
 import ImageCompressor from './components/tools/ImageCompressor';
 import ImageResizer from './components/tools/ImageResizer';
 import FinanceCalculators from './components/tools/FinanceCalculators';
 import PDFToText from './components/tools/PDFToText';
 import TextToPDF from './components/tools/TextToPDF';
+import PDFCompressor from './components/tools/PDFCompressor';
+import PDFMerger from './components/tools/PDFMerger';
+import PDFSplitter from './components/tools/PDFSplitter';
+import PDFToJPG from './components/tools/PDFToJPG';
+import JPGToPDF from './components/tools/JPGToPDF';
+import VideoCompressor from './components/tools/VideoCompressor';
+import VideoTrimmer from './components/tools/VideoTrimmer';
+import GIFMaker from './components/tools/GIFMaker';
+import BackgroundRemover from './components/tools/BackgroundRemover';
+import ImageConverter from './components/tools/ImageConverter';
 import AboutPage from './components/pages/AboutPage';
 import PrivacyPage from './components/pages/PrivacyPage';
 import TermsPage from './components/pages/TermsPage';
@@ -27,11 +42,23 @@ import BlogPage from './components/pages/BlogPage';
 
 export type PageType = 
   | 'home' 
+  | 'tools'
+  | 'search'
   | 'image-compressor' 
   | 'image-resizer' 
+  | 'image-converter'
+  | 'background-remover'
   | 'finance-calculators' 
   | 'pdf-to-text' 
   | 'text-to-pdf'
+  | 'pdf-compressor'
+  | 'pdf-merger'
+  | 'pdf-splitter'
+  | 'pdf-to-jpg'
+  | 'jpg-to-pdf'
+  | 'video-compressor'
+  | 'video-trimmer'
+  | 'gif-maker'
   | 'about'
   | 'privacy'
   | 'terms'
@@ -66,16 +93,40 @@ function App() {
     switch (currentPage) {
       case 'home':
         return <HomePage onNavigate={setCurrentPage} />;
+      case 'tools':
+        return <ToolsPage onNavigate={setCurrentPage} />;
+      case 'search':
+        return <SearchPage onNavigate={setCurrentPage} />;
       case 'image-compressor':
         return <ImageCompressor />;
       case 'image-resizer':
         return <ImageResizer />;
+      case 'image-converter':
+        return <ImageConverter />;
+      case 'background-remover':
+        return <BackgroundRemover />;
       case 'finance-calculators':
         return <FinanceCalculators />;
       case 'pdf-to-text':
         return <PDFToText />;
       case 'text-to-pdf':
         return <TextToPDF />;
+      case 'pdf-compressor':
+        return <PDFCompressor />;
+      case 'pdf-merger':
+        return <PDFMerger />;
+      case 'pdf-splitter':
+        return <PDFSplitter />;
+      case 'pdf-to-jpg':
+        return <PDFToJPG />;
+      case 'jpg-to-pdf':
+        return <JPGToPDF />;
+      case 'video-compressor':
+        return <VideoCompressor />;
+      case 'video-trimmer':
+        return <VideoTrimmer />;
+      case 'gif-maker':
+        return <GIFMaker />;
       case 'about':
         return <AboutPage />;
       case 'privacy':
@@ -133,23 +184,21 @@ function App() {
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tools</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Image Tools</h3>
               <ul className="space-y-2">
                 <li><button onClick={() => setCurrentPage('image-compressor')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Image Compressor</button></li>
                 <li><button onClick={() => setCurrentPage('image-resizer')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Image Resizer</button></li>
-                <li><button onClick={() => setCurrentPage('finance-calculators')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Finance Calculators</button></li>
-                <li><button onClick={() => setCurrentPage('pdf-to-text')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">PDF to Text</button></li>
-                <li><button onClick={() => setCurrentPage('text-to-pdf')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Text to PDF</button></li>
+                <li><button onClick={() => setCurrentPage('image-converter')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Image Converter</button></li>
+                <li><button onClick={() => setCurrentPage('background-remover')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Background Remover</button></li>
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Company</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">PDF & Video Tools</h3>
               <ul className="space-y-2">
-                <li><button onClick={() => setCurrentPage('about')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">About Us</button></li>
-                <li><button onClick={() => setCurrentPage('blog')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Blog</button></li>
-                <li><button onClick={() => setCurrentPage('contact')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Contact</button></li>
-                <li><button onClick={() => setCurrentPage('privacy')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Privacy Policy</button></li>
-                <li><button onClick={() => setCurrentPage('terms')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Terms of Service</button></li>
+                <li><button onClick={() => setCurrentPage('pdf-compressor')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">PDF Compressor</button></li>
+                <li><button onClick={() => setCurrentPage('video-compressor')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Video Compressor</button></li>
+                <li><button onClick={() => setCurrentPage('gif-maker')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">GIF Maker</button></li>
+                <li><button onClick={() => setCurrentPage('finance-calculators')} className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Finance Calculators</button></li>
               </ul>
             </div>
           </div>

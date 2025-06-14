@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Menu, X, Moon, Sun, BookOpen } from 'lucide-react';
+import { Zap, Menu, X, Moon, Sun, BookOpen, Search, Grid3X3 } from 'lucide-react';
 import { PageType } from '../App';
 
 interface HeaderProps {
@@ -46,45 +46,31 @@ const Header: React.FC<HeaderProps> = ({
             >
               Home
             </button>
-            <div className="relative group">
-              <button className="font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                Tools
-              </button>
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                <div className="py-2">
-                  <button
-                    onClick={() => onNavigate('image-compressor')}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    Image Compressor
-                  </button>
-                  <button
-                    onClick={() => onNavigate('image-resizer')}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    Image Resizer
-                  </button>
-                  <button
-                    onClick={() => onNavigate('finance-calculators')}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    Finance Calculators
-                  </button>
-                  <button
-                    onClick={() => onNavigate('pdf-to-text')}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    PDF to Text
-                  </button>
-                  <button
-                    onClick={() => onNavigate('text-to-pdf')}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    Text to PDF
-                  </button>
-                </div>
-              </div>
-            </div>
+            
+            <button
+              onClick={() => onNavigate('tools')}
+              className={`flex items-center space-x-1 font-medium transition-colors ${
+                currentPage === 'tools'
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'
+              }`}
+            >
+              <Grid3X3 className="h-4 w-4" />
+              <span>All Tools</span>
+            </button>
+
+            <button
+              onClick={() => onNavigate('search')}
+              className={`flex items-center space-x-1 font-medium transition-colors ${
+                currentPage === 'search'
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'
+              }`}
+            >
+              <Search className="h-4 w-4" />
+              <span>Search</span>
+            </button>
+            
             <button
               onClick={() => onNavigate('blog')}
               className={`flex items-center space-x-1 font-medium transition-colors ${
