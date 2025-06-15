@@ -477,7 +477,7 @@ Website performance directly impacts user experience, SEO rankings, and conversi
 - Progressive encoding enabled
 
 **Implementation:**
-```html
+``\`html
 <picture>
   <source srcset="product.webp" type="image/webp">
   <img src="product.jpg" alt="Product name" loading="lazy">
@@ -525,7 +525,7 @@ Website performance directly impacts user experience, SEO rankings, and conversi
 ### Responsive Images
 Serve different image sizes based on device:
 
-```html
+``\`html
 <img 
   srcset="image-320w.jpg 320w,
           image-640w.jpg 640w,
