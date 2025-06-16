@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Download, FileText, Loader, X, Info, Zap } from 'lucide-react';
+import ToolPageWrapper from '../ToolPageWrapper';
 
 interface CompressionResult {
   originalFile: File;
@@ -9,7 +10,7 @@ interface CompressionResult {
   compressionRatio: number;
 }
 
-const PDFCompressor: React.FC = () => {
+const PDFCompressorContent: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<CompressionResult | null>(null);
@@ -372,6 +373,14 @@ const PDFCompressor: React.FC = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const PDFCompressor: React.FC = () => {
+  return (
+    <ToolPageWrapper seoKey="pdfCompressor">
+      <PDFCompressorContent />
+    </ToolPageWrapper>
   );
 };
 

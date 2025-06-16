@@ -1,17 +1,52 @@
 import React from 'react';
+import { ToolSEOData } from '../../data/seoKeywords';
 
 interface StructuredDataProps {
-  type: 'Tool' | 'Article' | 'FAQ' | 'HowTo' | 'Calculator';
+  type: 'Tool' | 'Article' | 'FAQ' | 'HowTo' | 'Calculator' | 'WebPage' | 'FAQPage';
   data: any;
+  url: string;
 }
 
-const StructuredData: React.FC<StructuredDataProps> = ({ type, data }) => {
+const StructuredData: React.FC<StructuredDataProps> = ({ type, data, url }) => {
   const generateSchema = () => {
     const baseSchema = {
       "@context": "https://schema.org"
     };
 
     switch (type) {
+      case 'WebPage':
+        return {
+          ...baseSchema,
+          "@type": "WebPage",
+          "name": data.title,
+          "description": data.metaDescription,
+          "url": url,
+          "mainEntity": {
+            "@type": "WebApplication",
+            "name": data.h1,
+            "applicationCategory": "UtilityApplication",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          }
+        };
+
+      case 'FAQPage':
+        return {
+          ...baseSchema,
+          "@type": "FAQPage",
+          "mainEntity": data.faqs.map((faq: any) => ({
+            "@type": "Question",
+            "name": faq.question,
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": faq.answer
+            }
+          }))
+        };
+
       case 'Tool':
         return {
           ...baseSchema,
@@ -24,14 +59,8 @@ const StructuredData: React.FC<StructuredDataProps> = ({ type, data }) => {
           "offers": {
             "@type": "Offer",
             "price": "0",
-            "priceCurrency": "INR"
-          },
-          "aggregateRating": data.rating && {
-            "@type": "AggregateRating",
-            "ratingValue": data.rating.value,
-            "ratingCount": data.rating.count
-          },
-          "featureList": data.features || []
+            "priceCurrency": "USD"
+          }
         };
 
       case 'Article':
@@ -59,20 +88,6 @@ const StructuredData: React.FC<StructuredDataProps> = ({ type, data }) => {
             "@type": "WebPage",
             "@id": data.url
           }
-        };
-
-      case 'FAQ':
-        return {
-          ...baseSchema,
-          "@type": "FAQPage",
-          "mainEntity": data.questions.map((q: any) => ({
-            "@type": "Question",
-            "name": q.question,
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": q.answer
-            }
-          }))
         };
 
       case 'HowTo':
@@ -127,21 +142,14 @@ const StructuredData: React.FC<StructuredDataProps> = ({ type, data }) => {
     }
   };
 
-  React.useEffect(() => {
-    const schema = generateSchema();
-    const script = document.createElement('script');
-    script.type = 'application/ld+json';
-    script.textContent = JSON.stringify(schema);
-    document.head.appendChild(script);
-
-    return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
-      }
-    };
-  }, [type, data]);
-
-  return null;
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(generateSchema())
+      }}
+    />
+  );
 };
 
 export default StructuredData;

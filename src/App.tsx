@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { 
   Home, 
   Image, 
@@ -14,31 +14,38 @@ import {
   Search,
   Filter
 } from 'lucide-react';
+import { initPerformanceMonitoring } from './utils/performance';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
-import HomePage from './components/HomePage';
-import ToolsPage from './components/ToolsPage';
-import SearchPage from './components/SearchPage';
-import ImageCompressor from './components/tools/ImageCompressor';
-import ImageResizer from './components/tools/ImageResizer';
-import FinanceCalculators from './components/tools/FinanceCalculators';
-import PDFToText from './components/tools/PDFToText';
-import TextToPDF from './components/tools/TextToPDF';
-import PDFCompressor from './components/tools/PDFCompressor';
-import PDFMerger from './components/tools/PDFMerger';
-import PDFSplitter from './components/tools/PDFSplitter';
-import PDFToJPG from './components/tools/PDFToJPG';
-import JPGToPDF from './components/tools/JPGToPDF';
-import VideoCompressor from './components/tools/VideoCompressor';
-import VideoTrimmer from './components/tools/VideoTrimmer';
-import GIFMaker from './components/tools/GIFMaker';
-import BackgroundRemover from './components/tools/BackgroundRemover';
-import ImageConverter from './components/tools/ImageConverter';
-import AboutPage from './components/pages/AboutPage';
-import PrivacyPage from './components/pages/PrivacyPage';
-import TermsPage from './components/pages/TermsPage';
-import ContactPage from './components/pages/ContactPage';
-import BlogPage from './components/pages/BlogPage';
+
+// Lazy load components
+const HomePage = lazy(() => import('./components/HomePage'));
+const ToolsPage = lazy(() => import('./components/ToolsPage'));
+const SearchPage = lazy(() => import('./components/SearchPage'));
+
+// Lazy load tool components
+const ImageCompressor = lazy(() => import('./components/tools/ImageCompressor'));
+const ImageResizer = lazy(() => import('./components/tools/ImageResizer'));
+const FinanceCalculators = lazy(() => import('./components/tools/FinanceCalculators'));
+const PDFToText = lazy(() => import('./components/tools/PDFToText'));
+const TextToPDF = lazy(() => import('./components/tools/TextToPDF'));
+const PDFCompressor = lazy(() => import('./components/tools/PDFCompressor'));
+const PDFMerger = lazy(() => import('./components/tools/PDFMerger'));
+const PDFSplitter = lazy(() => import('./components/tools/PDFSplitter'));
+const PDFToJPG = lazy(() => import('./components/tools/PDFToJPG'));
+const JPGToPDF = lazy(() => import('./components/tools/JPGToPDF'));
+const VideoCompressor = lazy(() => import('./components/tools/VideoCompressor'));
+const VideoTrimmer = lazy(() => import('./components/tools/VideoTrimmer'));
+const GIFMaker = lazy(() => import('./components/tools/GIFMaker'));
+const BackgroundRemover = lazy(() => import('./components/tools/BackgroundRemover'));
+const ImageConverter = lazy(() => import('./components/tools/ImageConverter'));
+
+// Lazy load page components
+const AboutPage = lazy(() => import('./components/pages/AboutPage'));
+const PrivacyPage = lazy(() => import('./components/pages/PrivacyPage'));
+const TermsPage = lazy(() => import('./components/pages/TermsPage'));
+const ContactPage = lazy(() => import('./components/pages/ContactPage'));
+const BlogPage = lazy(() => import('./components/pages/BlogPage'));
 
 export type PageType = 
   | 'home' 
@@ -65,14 +72,18 @@ export type PageType =
   | 'contact'
   | 'blog';
 
-function App() {
+const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>('home');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    // Initialize performance monitoring in production
+    initPerformanceMonitoring();
+    
+    // Set initial theme
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
     }
@@ -90,56 +101,68 @@ function App() {
   };
 
   const renderPage = () => {
-    switch (currentPage) {
-      case 'home':
-        return <HomePage onNavigate={setCurrentPage} />;
-      case 'tools':
-        return <ToolsPage onNavigate={setCurrentPage} />;
-      case 'search':
-        return <SearchPage onNavigate={setCurrentPage} />;
-      case 'image-compressor':
-        return <ImageCompressor />;
-      case 'image-resizer':
-        return <ImageResizer />;
-      case 'image-converter':
-        return <ImageConverter />;
-      case 'background-remover':
-        return <BackgroundRemover />;
-      case 'finance-calculators':
-        return <FinanceCalculators />;
-      case 'pdf-to-text':
-        return <PDFToText />;
-      case 'text-to-pdf':
-        return <TextToPDF />;
-      case 'pdf-compressor':
-        return <PDFCompressor />;
-      case 'pdf-merger':
-        return <PDFMerger />;
-      case 'pdf-splitter':
-        return <PDFSplitter />;
-      case 'pdf-to-jpg':
-        return <PDFToJPG />;
-      case 'jpg-to-pdf':
-        return <JPGToPDF />;
-      case 'video-compressor':
-        return <VideoCompressor />;
-      case 'video-trimmer':
-        return <VideoTrimmer />;
-      case 'gif-maker':
-        return <GIFMaker />;
-      case 'about':
-        return <AboutPage />;
-      case 'privacy':
-        return <PrivacyPage />;
-      case 'terms':
-        return <TermsPage />;
-      case 'contact':
-        return <ContactPage />;
-      case 'blog':
-        return <BlogPage onNavigate={setCurrentPage} />;
-      default:
-        return <HomePage onNavigate={setCurrentPage} />;
-    }
+    const LoadingFallback = () => (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        {(() => {
+          switch (currentPage) {
+            case 'home':
+              return <HomePage onNavigate={setCurrentPage} />;
+            case 'tools':
+              return <ToolsPage onNavigate={setCurrentPage} />;
+            case 'search':
+              return <SearchPage onNavigate={setCurrentPage} />;
+            case 'image-compressor':
+              return <ImageCompressor />;
+            case 'image-resizer':
+              return <ImageResizer />;
+            case 'image-converter':
+              return <ImageConverter />;
+            case 'background-remover':
+              return <BackgroundRemover />;
+            case 'finance-calculators':
+              return <FinanceCalculators />;
+            case 'pdf-to-text':
+              return <PDFToText />;
+            case 'text-to-pdf':
+              return <TextToPDF />;
+            case 'pdf-compressor':
+              return <PDFCompressor />;
+            case 'pdf-merger':
+              return <PDFMerger />;
+            case 'pdf-splitter':
+              return <PDFSplitter />;
+            case 'pdf-to-jpg':
+              return <PDFToJPG />;
+            case 'jpg-to-pdf':
+              return <JPGToPDF />;
+            case 'video-compressor':
+              return <VideoCompressor />;
+            case 'video-trimmer':
+              return <VideoTrimmer />;
+            case 'gif-maker':
+              return <GIFMaker />;
+            case 'about':
+              return <AboutPage />;
+            case 'privacy':
+              return <PrivacyPage />;
+            case 'terms':
+              return <TermsPage />;
+            case 'contact':
+              return <ContactPage />;
+            case 'blog':
+              return <BlogPage onNavigate={setCurrentPage} />;
+            default:
+              return <HomePage onNavigate={setCurrentPage} />;
+          }
+        })()}
+      </Suspense>
+    );
   };
 
   return (
