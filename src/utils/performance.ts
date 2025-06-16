@@ -1,5 +1,17 @@
 // Performance optimization utilities
 
+export interface MeasureResult<T> {
+  result: T;
+  processingTime: number;
+}
+
+export async function measure<T>(fn: () => Promise<T>): Promise<MeasureResult<T>> {
+  const start = performance.now();
+  const result = await fn();
+  const processingTime = performance.now() - start;
+  return { result, processingTime };
+}
+
 export const lazyLoadImage = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();

@@ -4,7 +4,19 @@ import { resolve } from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'configure-response-headers',
+      configureServer: (server) => {
+        server.middlewares.use((_, res, next) => {
+          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+          next();
+        });
+      }
+    }
+  ],
 
   // Optimize dependencies
   optimizeDeps: {
@@ -16,60 +28,37 @@ export default defineConfig({
       'pdf-lib',
       'chart.js',
       'react-chartjs-2'
-    ]
+    ],
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'] // Exclude FFmpeg from optimization
   },
 
   // Build configuration
   build: {
-    target: 'es2015', // Changed from esnext for better browser compatibility
+    target: 'es2015',
     minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    },
+    assetsInlineLimit: 0, // Don't inline large files
+    sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor': ['react', 'react-dom'],
-          'pdf': ['jspdf', 'pdfjs-dist', 'pdf-lib'],
-          'chart': ['chart.js', 'react-chartjs-2'],
-          'media': ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+          // Split FFmpeg into a separate chunk
+          ffmpeg: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+          // Split other large dependencies
+          pdf: ['pdf-lib', 'pdfjs-dist', 'jspdf'],
+          charts: ['chart.js', 'react-chartjs-2']
         }
       }
-    },
-    sourcemap: true, // Enable sourcemaps for debugging
-    cssCodeSplit: true,
-    chunkSizeWarningLimit: 1000,
-    outDir: 'dist',
-    assetsDir: 'assets',
-    emptyOutDir: true,
-    commonjsOptions: {
-      include: [/node_modules/],
-      extensions: ['.js', '.cjs']
     }
   },
 
+  // Public directory configuration
+  publicDir: 'public',
+  
   // Server configuration
   server: {
-    port: 3000,
-    host: true,
-    fs: {
-      strict: true
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin'
     }
   },
-
-  // Preview configuration
-  preview: {
-    port: 3000,
-    host: true
-  },
-
-  // Resolve configuration
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, './src')
-    }
-  }
 });

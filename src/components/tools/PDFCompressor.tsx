@@ -1,6 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Download, FileText, Loader, X, Info, Zap } from 'lucide-react';
-import ToolPageWrapper from '../ToolPageWrapper';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Upload, Download, FileText, X, Info } from 'lucide-react';
+import { PDFDocument } from 'pdf-lib';
+import { formatFileSize } from '../../utils/format';
+import { measure } from '../../utils/performance';
 
 interface CompressionResult {
   originalFile: File;
@@ -8,17 +10,133 @@ interface CompressionResult {
   originalSize: number;
   compressedSize: number;
   compressionRatio: number;
+  pageCount: number;
 }
 
-const PDFCompressorContent: React.FC = () => {
+// Constants for validation and processing
+const FILE_SIZE_LIMIT = 100 * 1024 * 1024; // 100MB
+const MIN_FILE_SIZE = 1024; // 1KB
+const MAX_PAGES = 1000;
+
+const checkMemoryAvailability = (fileSize: number): boolean => {
+  if ('performance' in window && (performance as any).memory) {
+    const memory = (performance as any).memory;
+    const available = memory.jsHeapSizeLimit - memory.usedJSHeapSize;
+    return available > fileSize * 2;
+  }
+  return true;
+};
+
+const PDFCompressor: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<CompressionResult | null>(null);
   const [compressionLevel, setCompressionLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [processingTime, setProcessingTime] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const workerRef = useRef<Worker | null>(null);
 
-  const handleDrag = (e: React.DragEvent) => {
+  // Initialize worker
+  useEffect(() => {
+    workerRef.current = new Worker(
+      new URL('../../workers/pdf.worker.ts', import.meta.url),
+      { type: 'module' }
+    );
+
+    workerRef.current.onmessage = (e) => {
+      const { type, payload } = e.data;
+      switch (type) {
+        case 'progress':
+          setProgress(payload);
+          break;
+        case 'compressed':
+          handleCompressionComplete(payload);
+          break;
+        case 'error':
+          setError(payload);
+          setIsProcessing(false);
+          break;
+      }
+    };
+
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+    };
+  }, []);
+
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    if (result?.compressedBlob) {
+      URL.revokeObjectURL(URL.createObjectURL(result.compressedBlob));
+    }
+  }, [previewUrl, result]);
+
+  // File validation
+  const validateFile = useCallback(async (file: File): Promise<string | null> => {
+    if (!file) return 'Please select a PDF file.';
+    
+    if (file.type !== 'application/pdf') {
+      return 'Only PDF files are supported.';
+    }
+    
+    if (file.size < MIN_FILE_SIZE) {
+      return 'File is too small to compress.';
+    }
+
+    if (file.size > FILE_SIZE_LIMIT) {
+      return `File too large. Maximum size is ${formatFileSize(FILE_SIZE_LIMIT)}.`;
+    }
+    
+    if (!checkMemoryAvailability(file.size)) {
+      return 'Not enough memory available to process this PDF. Please try a smaller file.';
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pageCount = pdfDoc.getPageCount();
+
+      if (pageCount > MAX_PAGES) {
+        return `PDF has too many pages. Maximum is ${MAX_PAGES} pages.`;
+      }
+
+      return null;
+    } catch (err) {
+      return 'Invalid or corrupted PDF file.';
+    }
+  }, []);
+
+  // File selection handler
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    cleanup();
+    setError(null);
+    setResult(null);
+    setProgress(0);
+    setProcessingTime(null);
+
+    const validationError = await validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const newPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(newPreviewUrl);
+  }, [cleanup, validateFile]);
+
+  // Drag and drop handlers
+  const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -26,361 +144,262 @@ const PDFCompressorContent: React.FC = () => {
     } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
-  };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
-  };
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
 
-  const handleFile = async (file: File) => {
-    if (file.type !== 'application/pdf') {
-      setError('Please select a valid PDF file');
-      return;
-    }
-
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
-      setError('File size must be less than 100MB');
-      return;
-    }
-
+    cleanup();
     setError(null);
-    setIsProcessing(true);
     setResult(null);
+    setProgress(0);
+    setProcessingTime(null);
+
+    const validationError = await validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const newPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(newPreviewUrl);
+  }, [cleanup, validateFile]);
+
+  // Compression handlers
+  const handleCompressionComplete = useCallback((compressedBlob: Blob) => {
+    if (!previewUrl) return;
+
+    const createResult = async () => {
+      try {
+        const file = await fetch(previewUrl).then(r => r.blob()).then(b => 
+          new File([b], 'input.pdf', { type: 'application/pdf' })
+        );
+
+        const result: CompressionResult = {
+          originalFile: file,
+          compressedBlob,
+          originalSize: file.size,
+          compressedSize: compressedBlob.size,
+          compressionRatio: (1 - (compressedBlob.size / file.size)) * 100,
+          pageCount: (await PDFDocument.load(await file.arrayBuffer())).getPageCount()
+        };
+
+        if (result.compressedSize >= result.originalSize) {
+          throw new Error('Compression did not reduce file size. The PDF might already be optimized.');
+        }
+
+        setResult(result);
+        cleanup();
+        setPreviewUrl(URL.createObjectURL(compressedBlob));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to process compression result.');
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+
+    createResult();
+  }, [previewUrl, cleanup]);
+
+  const compressPDF = useCallback(async () => {
+    if (!previewUrl || !workerRef.current) return;
+
+    setIsProcessing(true);
+    setError(null);
+    setProgress(0);
 
     try {
-      const compressedBlob = await compressPDF(file, compressionLevel);
-      const compressionRatio = Math.round(((file.size - compressedBlob.size) / file.size) * 100);
+      const file = await fetch(previewUrl).then(r => r.blob()).then(b => 
+        new File([b], 'input.pdf', { type: 'application/pdf' })
+      );
 
-      setResult({
-        originalFile: file,
-        compressedBlob,
-        originalSize: file.size,
-        compressedSize: compressedBlob.size,
-        compressionRatio
+      const { processingTime } = await measure(async () => {
+        const arrayBuffer = await file.arrayBuffer();
+        workerRef.current?.postMessage({
+          type: 'compress',
+          payload: {
+            pdfBuffer: arrayBuffer,
+            compressionLevel
+          }
+        }, [arrayBuffer]);
       });
+
+      setProcessingTime(processingTime);
     } catch (err) {
-      setError('Failed to compress PDF. Please try again.');
-    } finally {
+      console.error('Compression error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred during compression. Please try again.');
       setIsProcessing(false);
     }
-  };
+  }, [previewUrl, compressionLevel]);
 
-  const compressPDF = async (file: File, level: string): Promise<Blob> => {
-    // Simulate PDF compression
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Mock compression - in reality, you'd use pdf-lib or similar
-        const compressionFactors = {
-          low: 0.9,
-          medium: 0.7,
-          high: 0.5
-        };
-        
-        const factor = compressionFactors[level as keyof typeof compressionFactors];
-        const compressedSize = Math.floor(file.size * factor);
-        
-        // Create a mock compressed blob
-        const compressedBlob = new Blob([file], { type: 'application/pdf' });
-        Object.defineProperty(compressedBlob, 'size', { value: compressedSize });
-        
-        resolve(compressedBlob);
-      }, 3000);
-    });
-  };
+  // Download handler
+  const downloadCompressed = useCallback(() => {
+    if (!result?.compressedBlob) return;
+    
+    const url = URL.createObjectURL(result.compressedBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'compressed.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [result]);
 
-  const downloadCompressed = () => {
-    if (!result) return;
-
-    const link = document.createElement('a');
-    link.download = `compressed_${result.originalFile.name}`;
-    link.href = URL.createObjectURL(result.compressedBlob);
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const reset = () => {
-    setResult(null);
+  // Reset handler
+  const reset = useCallback(() => {
+    cleanup();
     setError(null);
+    setResult(null);
+    setProgress(0);
+    setProcessingTime(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
+  }, [cleanup]);
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl mb-4">
-            <FileText className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            PDF Compressor
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Reduce PDF file size while maintaining quality. Perfect for email attachments, 
-            web uploads, and storage optimization. All processing happens securely in your browser.
-          </p>
-        </div>
-
-        {/* SEO Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            How to Compress PDF Files Online
-          </h2>
-          <div className="prose prose-gray dark:prose-invert max-w-none">
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              PDF compression is essential for reducing file sizes without compromising document quality. 
-              Our online PDF compressor uses advanced algorithms to optimize your documents for web sharing, 
-              email attachments, and storage efficiency.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Benefits of PDF Compression:</h3>
-                <ul className="text-gray-600 dark:text-gray-300 space-y-1">
-                  <li>• Faster upload and download times</li>
-                  <li>• Reduced storage space requirements</li>
-                  <li>• Email-friendly file sizes</li>
-                  <li>• Improved website loading speeds</li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Compression Levels:</h3>
-                <ul className="text-gray-600 dark:text-gray-300 space-y-1">
-                  <li>• <strong>Low:</strong> Minimal compression, highest quality</li>
-                  <li>• <strong>Medium:</strong> Balanced compression and quality</li>
-                  <li>• <strong>High:</strong> Maximum compression, good quality</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Info Panel */}
-        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-8">
-          <div className="flex items-start space-x-3">
-            <Info className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">How it works:</h3>
-              <ol className="text-sm text-red-800 dark:text-red-200 space-y-1">
-                <li>1. Upload your PDF file (drag & drop or click to browse)</li>
-                <li>2. Choose your preferred compression level</li>
-                <li>3. Wait for processing to complete</li>
-                <li>4. Download your compressed PDF file</li>
-              </ol>
-            </div>
-          </div>
-        </div>
-
-        {!result ? (
-          <div className="space-y-6">
-            {/* Compression Level Selector */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Compression Level
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { level: 'low', name: 'Low Compression', description: 'Minimal size reduction, highest quality', reduction: '10-20%' },
-                  { level: 'medium', name: 'Medium Compression', description: 'Balanced size and quality', reduction: '30-50%' },
-                  { level: 'high', name: 'High Compression', description: 'Maximum size reduction', reduction: '50-70%' }
-                ].map((option) => (
-                  <button
-                    key={option.level}
-                    onClick={() => setCompressionLevel(option.level as any)}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      compressionLevel === option.level
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/30'
-                        : 'border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-400'
-                    }`}
-                  >
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
-                      {option.name}
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                      {option.description}
-                    </p>
-                    <span className="text-xs font-medium text-red-600 dark:text-red-400">
-                      ~{option.reduction} reduction
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Upload Area */}
-            <div
-              className={`relative border-2 border-dashed rounded-2xl p-8 transition-all duration-200 ${
-                dragActive
-                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-red-400 dark:hover:border-red-500'
-              } ${isProcessing ? 'pointer-events-none opacity-50' : ''}`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                disabled={isProcessing}
-              />
-              
-              <div className="text-center">
-                {isProcessing ? (
-                  <div className="space-y-4">
-                    <Loader className="h-12 w-12 text-red-600 animate-spin mx-auto" />
-                    <p className="text-lg font-medium text-gray-900 dark:text-white">
-                      Compressing your PDF...
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      This may take a few moments depending on file size
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <Upload className="h-12 w-12 text-gray-400 mx-auto" />
-                    <div>
-                      <p className="text-lg font-medium text-gray-900 dark:text-white">
-                        Drop your PDF here or click to browse
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                        Supports PDF files • Max size: 100MB
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <X className="h-5 w-5 text-red-600 dark:text-red-400" />
-                  <p className="text-red-800 dark:text-red-200">{error}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Results */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                  Compression Results
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Original Size</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {formatFileSize(result.originalSize)}
-                    </p>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/30 rounded-lg">
-                    <p className="text-sm text-green-600 dark:text-green-400">Compressed Size</p>
-                    <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                      {formatFileSize(result.compressedSize)}
-                    </p>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                    <p className="text-sm text-blue-600 dark:text-blue-400">Space Saved</p>
-                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                      {result.compressionRatio}%
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <div className="flex flex-col sm:flex-row justify-center gap-4">
-                  <button
-                    onClick={downloadCompressed}
-                    className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200"
-                  >
-                    <Download className="mr-2 h-5 w-5" />
-                    Download Compressed PDF
-                  </button>
-                  <button
-                    onClick={reset}
-                    className="px-6 py-3 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
-                  >
-                    Compress Another PDF
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* FAQ Section */}
-        <div className="mt-12 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-            Frequently Asked Questions
-          </h2>
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                How much can I compress my PDF?
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Compression rates vary depending on your PDF content. Text-heavy documents can be compressed by 50-70%, 
-                while image-heavy PDFs typically achieve 20-40% reduction.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Will compression affect PDF quality?
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Our compression algorithm is designed to maintain visual quality while reducing file size. 
-                Text remains crisp, and images are optimized using advanced techniques.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Is my PDF secure during compression?
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Yes! All compression happens locally in your browser. Your files are never uploaded to our servers, 
-                ensuring complete privacy and security.
-              </p>
-            </div>
+    <div className="space-y-6">
+      {/* File Drop Zone */}
+      <div
+        className={`relative border-2 border-dashed rounded-lg p-8 text-center hover:border-blue-500 transition-colors ${
+          dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+        }`}
+      >
+        <div
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className="space-y-4"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={handleFileChange}
+            className="hidden"
+            id="pdf-input"
+          />
+          
+          <label
+            htmlFor="pdf-input"
+            className="cursor-pointer inline-flex items-center space-x-2 text-gray-600 hover:text-blue-500"
+          >
+            <Upload className="w-6 h-6" />
+            <span>Drop PDF here or click to upload</span>
+          </label>
+          
+          <div className="text-sm text-gray-500">
+            Maximum file size: {formatFileSize(FILE_SIZE_LIMIT)}
           </div>
         </div>
       </div>
-    </div>
-  );
-};
 
-const PDFCompressor: React.FC = () => {
-  return (
-    <ToolPageWrapper seoKey="pdfCompressor">
-      <PDFCompressorContent />
-    </ToolPageWrapper>
+      {/* PDF Preview and Controls */}
+      {previewUrl && (
+        <div className="space-y-6">
+          {/* PDF Preview */}
+          <div className="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden">
+            <iframe
+              src={previewUrl + '#toolbar=0'}
+              className="w-full h-full"
+              title="PDF Preview"
+            />
+          </div>
+
+          {/* Compression Controls */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Compression Level
+            </label>
+            <select
+              value={compressionLevel}
+              onChange={(e) => setCompressionLevel(e.target.value as 'low' | 'medium' | 'high')}
+              className="w-full p-2 border rounded-md"
+              disabled={isProcessing}
+            >
+              <option value="low">Low (Better Quality)</option>
+              <option value="medium">Medium (Balanced)</option>
+              <option value="high">High (Smaller Size)</option>
+            </select>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-between items-center">
+            <div className="flex-1">
+              {!isProcessing && !result && (
+                <button
+                  onClick={compressPDF}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                  disabled={!!error}
+                >
+                  <FileText className="w-4 h-4 mr-2 inline" />
+                  Compress PDF
+                </button>
+              )}
+
+              {isProcessing && (
+                <div className="text-center">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600">Processing... {progress}%</p>
+                </div>
+              )}
+
+              {result && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">
+                    Original size: {formatFileSize(result.originalSize)}<br />
+                    Compressed size: {formatFileSize(result.compressedSize)}<br />
+                    Compression ratio: {result.compressionRatio.toFixed(1)}%<br />
+                    Pages: {result.pageCount}
+                    {processingTime && (
+                      <><br />Processing time: {(processingTime / 1000).toFixed(1)}s</>
+                    )}
+                  </div>
+                  <div className="flex space-x-4">
+                    <button
+                      onClick={downloadCompressed}
+                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                    >
+                      <Download className="w-4 h-4 mr-2 inline" />
+                      Download
+                    </button>
+                    <button
+                      onClick={reset}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                    >
+                      <X className="w-4 h-4 mr-2 inline" />
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
+              <div className="flex items-center space-x-2">
+                <Info className="w-5 h-5" />
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

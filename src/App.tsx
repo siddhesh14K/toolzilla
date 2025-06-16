@@ -1,19 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { 
-  Home, 
-  Image, 
-  Calculator, 
-  FileText, 
-  Download, 
-  Menu, 
-  X, 
-  Moon, 
-  Sun,
-  Zap,
-  Video,
-  Search,
-  Filter
-} from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { initPerformanceMonitoring } from './utils/performance';
 import Header from './components/Header';
 import Navigation from './components/Navigation';

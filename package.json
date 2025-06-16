@@ -11,8 +11,8 @@
     "generate-sitemap": "ts-node scripts/generate-sitemap.ts"
   },
   "dependencies": {
-    "@ffmpeg/ffmpeg": "^0.12.7",
-    "@ffmpeg/util": "^0.12.1",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "chart.js": "^4.4.0",
     "jspdf": "^2.5.1",
     "lucide-react": "^0.344.0",
