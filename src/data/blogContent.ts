@@ -477,12 +477,12 @@ Website performance directly impacts user experience, SEO rankings, and conversi
 - Progressive encoding enabled
 
 **Implementation:**
-``\`html
+\`\`\`html
 <picture>
   <source srcset="product.webp" type="image/webp">
   <img src="product.jpg" alt="Product name" loading="lazy">
 </picture>
-```
+\`\`\`
 
 ### Hero Images and Banners
 **Requirements:**
@@ -525,7 +525,7 @@ Website performance directly impacts user experience, SEO rankings, and conversi
 ### Responsive Images
 Serve different image sizes based on device:
 
-``\`html
+\`\`\`html
 <img 
   srcset="image-320w.jpg 320w,
           image-640w.jpg 640w,
@@ -535,21 +535,21 @@ Serve different image sizes based on device:
          1024px"
   src="image-640w.jpg"
   alt="Responsive image">
-```
+\`\`\`
 
 ### Lazy Loading
 Load images only when needed:
 
-```html
+\`\`\`html
 <img src="image.jpg" loading="lazy" alt="Description">
-```
+\`\`\`
 
 ### Critical Image Preloading
 Preload important above-fold images:
 
-```html
+\`\`\`html
 <link rel="preload" as="image" href="hero-image.jpg">
-```
+\`\`\`
 
 ### Image CDN Integration
 Use CDNs for automatic optimization:
@@ -644,13 +644,13 @@ Use CDNs for automatic optimization:
 ### Build Process Integration
 Automate compression during development:
 
-```javascript
+\`\`\`javascript
 // Webpack configuration
 module.exports = {
   module: {
     rules: [
       {
-        test: /\.(png|jpe?g|gif)$/i,
+        test: /\\.(png|jpe?g|gif)$/i,
         use: [
           {
             loader: 'file-loader',
@@ -672,7 +672,7 @@ module.exports = {
     ]
   }
 };
-```
+\`\`\`
 
 ### CMS Integration
 Automatic compression for content management:
