@@ -8,7 +8,6 @@ export default defineConfig({
 
   // Optimize dependencies
   optimizeDeps: {
-    exclude: ['lucide-react'],
     include: [
       'react',
       'react-dom',
@@ -22,7 +21,7 @@ export default defineConfig({
 
   // Build configuration
   build: {
-    target: 'esnext',
+    target: 'es2015', // Changed from esnext for better browser compatibility
     minify: 'terser',
     terserOptions: {
       compress: {
@@ -33,30 +32,38 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'pdf-tools': ['jspdf', 'pdfjs-dist', 'pdf-lib'],
-          'chart-tools': ['chart.js', 'react-chartjs-2'],
-          'ffmpeg-tools': ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+          'vendor': ['react', 'react-dom'],
+          'pdf': ['jspdf', 'pdfjs-dist', 'pdf-lib'],
+          'chart': ['chart.js', 'react-chartjs-2'],
+          'media': ['@ffmpeg/ffmpeg', '@ffmpeg/util']
         }
       }
     },
-    sourcemap: false,
+    sourcemap: true, // Enable sourcemaps for debugging
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
+    commonjsOptions: {
+      include: [/node_modules/],
+      extensions: ['.js', '.cjs']
+    }
   },
 
   // Server configuration
   server: {
-    headers: {
-      'Cache-Control': 'public, max-age=31536000'
+    port: 3000,
+    host: true,
+    fs: {
+      strict: true
     }
   },
 
   // Preview configuration
   preview: {
-    headers: {
-      'Cache-Control': 'public, max-age=31536000'
-    }
+    port: 3000,
+    host: true
   },
 
   // Resolve configuration
